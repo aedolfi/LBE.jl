@@ -33,13 +33,12 @@ function BGKandStream!(state:: State, sys::SysConst)
     return nothing
 end
 
-#TODO Fix propagation for outer corners
+#TODO: Fix propagation for outer corners
 function BGKandStreamChannel!(state:: StateWithBound, sys::SysConstWithBound)
     fe0, fe1, fe2, fe3, fe4, fe5, fe6, fe7, fe8 = LBE.viewdists(state.feq)
     ft0, ft1, ft2, ft3, ft4, ft5, ft6, ft7, ft8 = LBE.viewdists(state.ftemp)
     fo0, fo1, fo2, fo3, fo4, fo5, fo6, fo7, fo8 = LBE.viewdists(state.fout)
     fb0, fb1, fb2, fb3, fb4, fb5, fb6, fb7, fb8 = LBE.viewdists(state.fbound)
-    fbi0, fbi1, fbi2, fbi3, fbi4, fbi5, fbi6, fbi7, fbi8 = LBE.viewdists(state.fboundinversed)
 
     
 
@@ -55,13 +54,14 @@ function BGKandStreamChannel!(state:: StateWithBound, sys::SysConstWithBound)
     fo8 .= ft8 * sys.umtau .+ fe8*sys.utau
 
 
-      # The names where given as follows
+        # The names where given as follows
 
 #
 #  For a empty box
 #        xxxxxxxx  obsup
 #        x      x
 # obsleftx      x obsright
+#        x      x
 #        xxxxxxxx obsdown
 #  
 # Which makes the names weird for a filled shape
@@ -78,29 +78,35 @@ function BGKandStreamChannel!(state:: StateWithBound, sys::SysConstWithBound)
 #          xxxxxxxx 
 #          xxxxxxxx 
 # corneroutld      corneroutrd
+#
+# xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# x cornerlu              cornerru  x 
+# x                                 X
+# x cornerld               cornerrd x 
+# xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 
 #TODO: In order to optimize the algorithm all the following differences should be saved in SysConstWithBound
-    #storing uper bounds
-    fb2 .= fo2 .* (sys.obsup .- sys.corneroutrd)
-    fb3 .= fo3 .* (sys.obsup .- sys.corneroutrd .- sys.corneroutld)
-    fb4 .= fo4 .* (sys.obsup .- sys.corneroutld)
 
-    #storing lower bounds
-    fb6 .= fo6 .* (sys.obsdown .- sys.corneroutlu)
-    fb7 .= fo7 .* (sys.obsdown .- sys.corneroutlu .- sys.corneroutru)
-    fb8 .= fo8 .* (sys.obsdown .- sys.corneroutru)
+    #Storing bounds that shoulb be handeld differnetly due to corners
+    # fb1 .= fo1 .* (sys.obsright .- sys.corneroutld .- sys.corneroutlu)
+    # fb2 .= fo2 .* (sys.obsright .+ sys.obsup .- sys.cornerru .-sys.corneroutld .- sys.corneroutrd .- sys.corneroutlu) 
+    # fb3 .= fo3 .* (sys.obsup .- sys.corneroutld .- sys.corneroutrd)
+    # fb4 .= fo4 .* (sys.obsleft .+ sys.obsup .- sys.cornerlu .- sys.corneroutld .- sys.corneroutrd .- sys.corneroutru)
+    # fb5 .= fo5 .* (sys.obsleft .- sys.corneroutrd .- sys.corneroutru)
+    # fb6 .= fo6 .* (sys.obsleft .+ sys.obsdown .- sys.cornerld .- sys.corneroutlu .- sys.corneroutrd .- sys.corneroutru)
+    # fb7 .= fo7 .* (sys.obsdown .- sys.corneroutru .- sys.corneroutlu)
+    # fb8 .= fo8 .* (sys.obsright .+ sys.obsdown .- sys.cornerrd .- sys.corneroutld .- sys.corneroutlu .- sys.corneroutru)
 
 
-    #storing right bounds
-    fb2 .+= fo2 .* (sys.obsright .- sys.cornerru .- (sys.corneroutlu .- sys.cornerru)) 
-    fb1 .= fo1 .* (sys.obsright .- sys.corneroutlu .- sys.corneroutld)
-    fb8 .+= fo8 .* (sys.obsright .- sys.cornerrd .- (sys.corneroutld .- sys.cornerru))
-
-    #storing left bounds
-    fb4 .+= fo4 .* (sys.obsleft .- sys.cornerlu .- (sys.corneroutru .- sys.cornerlu))
-    fb5 .= fo5 .* (sys.obsleft .- sys.corneroutru .- sys.corneroutrd)
-    fb6 .+= fo6 .* (sys.obsleft .- sys.cornerld .- (sys.corneroutrd .- sys.cornerlu))
+    fb1 .= fo1 .* sys.border[1]
+    fb2 .= fo2 .* sys.border[2]
+    fb3 .= fo3 .* sys.border[3]
+    fb4 .= fo4 .* sys.border[4]
+    fb5 .= fo5 .* sys.border[5]
+    fb6 .= fo6 .* sys.border[6]
+    fb7 .= fo7 .* sys.border[7]
+    fb8 .= fo8 .* sys.border[8]
 
     #erasing the boundary distribution values
     fo1 .-= fb1
@@ -125,60 +131,16 @@ function BGKandStreamChannel!(state:: StateWithBound, sys::SysConstWithBound)
     circshift!(ft8, fo8, (1,1))
 
 
-       # The names where given as follows
-
-#
-#  For a empty box
-#        xxxxxxxx  obsup
-#        x      x
-# obsleftx      x obsright
-#        xxxxxxxx obsdown
-#  
-# Which makes the names weird for a filled shape
-#           obsdown
-#          xxxxxxxx  
-# obsright xxxxxxxx obsleft
-#          xxxxxxxx 
-#          xxxxxxxx 
-#           obsup
-#Corners are named like this
-# corneroutlu      corneroutru
-#          xxxxxxxx  
-#          xxxxxxxx
-#          xxxxxxxx 
-#          xxxxxxxx 
-# corneroutld      corneroutrd
-
-    #interchange stored values
-    #up
-    fbi6 .= fb2 .* (sys.obsup .- sys.corneroutrd)
-    fbi7 .= fb3 .* (sys.obsup .- sys.corneroutld .- sys.corneroutrd)
-    fbi8 .= fb4 .* (sys.obsup .- sys.corneroutrd)
-
-    #down
-    fbi2 .= fb6 .* (sys.obsdown .- sys.corneroutlu)
-    fbi3 .= fb7 .* (sys.obsdown .- sys.corneroutlu .- sys.corneroutru)
-    fbi4 .= fb8 .* (sys.obsdown .- sys.corneroutru)
-
-    #right
-    fbi6 .+= fb2 .* (sys.obsright .- sys.cornerru .- (sys.corneroutlu .- sys.cornerru)) 
-    fbi5 .= fb1 .* (sys.obsright .- sys.corneroutlu .- sys.corneroutld)
-    fbi4 .+= fb8 .* (sys.obsright .- sys.cornerrd .- (sys.corneroutld .- sys.cornerru))
-
-    #left
-    fbi8 .+= fb4 .* (sys.obsleft .- sys.cornerlu .- (sys.corneroutru .- sys.cornerlu))
-    fbi1 .= fb5 .* (sys.obsleft .- sys.corneroutru .- sys.corneroutrd)
-    fbi2 .+= fb6 .* (sys.obsleft .- sys.cornerld .- (sys.corneroutrd .- sys.cornerlu))
 
     #add the stored boundary terms
-    ft1 .+= fbi1
-    ft2 .+= fbi2
-    ft3 .+= fbi3
-    ft4 .+= fbi4
-    ft5 .+= fbi5
-    ft6 .+= fbi6
-    ft7 .+= fbi7
-    ft8 .+= fbi8
+    ft1 .+= fb5
+    ft2 .+= fb6
+    ft3 .+= fb7
+    ft4 .+= fb8
+    ft5 .+= fb1
+    ft6 .+= fb2
+    ft7 .+= fb3
+    ft8 .+= fb4
 
 
 

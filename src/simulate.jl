@@ -62,11 +62,13 @@ end
 function channel()
     sys = LBE.SysConstWithBound{Float64}()
     obs = zeros(sys.Lx, sys.Ly)
-    view(obs, 128, :) .= 1
-    view(obs, 129, :) .= 1
+    #view(obs, 20:21 , : ).=1
+    for i in 2:8, j in 2:3
+        obs[i,j] = 1
+    end
     sys = LBE.SysConstWithBound{Float64}(Tmax=1000, obs=obs)
-    state = LBE.MyStateX(sys)
-    LBE.initdis!(state, sys)
+    state = LBE.MyState(sys)
+    #LBE.initdis!(state, sys)
     result = LBE.time_loop_channel(sys, state)
     plot(heatmap(result.velsq),heatmap(result.rho))
 end
