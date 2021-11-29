@@ -52,6 +52,21 @@ Base.@kwdef struct SysConstWithBound{T}
     vx:: Vector{T} = [0.0,1.0,1.0, 0.0, -1, -1.0, -1, 0.0, 1]
     vy:: Vector{T} = [0.0,0.0,1.0, 1.0, 1, 0.0, -1, -1.0, -1]
 
+    # The names where given as follows
+
+#        xxxxxxxx  obsup
+#        x      x
+# obslef x      x obsright
+#        xxxxxxxx obsdown
+#
+# corneroutlu      corneroutru
+#          xxxxxxxx  
+#          xxxxxxxx
+#          xxxxxxxx 
+#          xxxxxxxx 
+# corneroutld      corneroutrd
+
+
 
     obs::Array{T,2} = zeros(Lx,Ly)
     obslist = obslist(obs, T=T)
@@ -60,6 +75,10 @@ Base.@kwdef struct SysConstWithBound{T}
     obsright::Array{T,2} =obslist[3]
     obsup::Array{T,2} = obslist[4]
     obsdown::Array{T,2} = obslist[5]
+    corneroutlu::Array{T,2} = obslist[6]
+    corneroutld::Array{T,2} = obslist[7]
+    corneroutru::Array{T,2} = obslist[8]
+    corneroutrd::Array{T,2} = obslist[9]
     cornerru::Array{T,2} = obsright .* obsup
     cornerrd::Array{T,2} = obsright .* obsdown
     cornerlu::Array{T,2} = obsleft .* obsup
@@ -179,7 +198,11 @@ function MyStateY(sysc::SysConst; T=Float64)
 end
 
 
-
+"""
+ function MyStateX(sysc, kwargs...)#
+creates velocity field in X direction
+TODO: initialize with field and state, so that you can create whatever vel field you want
+"""
 function MyStateX(sysc::SysConstWithBound; T=Float64)
     state = StateWithBound{T, 3}(
         fout = zeros(sysc.Lx, sysc.Ly, sysc.Q),
@@ -197,7 +220,11 @@ function MyStateX(sysc::SysConstWithBound; T=Float64)
     return state
 end
 
-
+"""
+ function MyStateY(sysc, kwargs...)#
+creates velocity field in Y direction
+TODO: initialize with field and state, so that you can create whatever vel field you want
+"""
 function MyStateY(sysc::SysConstWithBound; T=Float64)
     state = StateWithBound{T, 3}(
         fout = zeros(sysc.Lx, sysc.Ly, sysc.Q),
@@ -219,6 +246,7 @@ end
 Returns a list containing obsup, obsdown, obsleft, obsright, interior
 
 TODO: Find out how double corners e.g. leftup and leftdown should be handled 
+        Add a field for outer corners. 
 """
 function obslist(obs; T=Float64)
     Lx = size(obs)[1]
@@ -228,6 +256,10 @@ function obslist(obs; T=Float64)
     obsright::Array{T,2} = zeros(Lx, Ly)
     obsup::Array{T,2} = zeros(Lx, Ly)
     obsdown::Array{T,2} = zeros(Lx, Ly)
+    obsoutru::Array{T,2} = zeros(Lx, Ly)
+    obsoutrd::Array{T,2} = zeros(Lx, Ly)
+    obsoutlu::Array{T,2} = zeros(Lx, Ly)
+    obsoutld::Array{T,2} = zeros(Lx, Ly)
     for i in 1:Lx, j in 1:Ly
         interior[i,j] = (obs[i,j]==1 && obs[i,LBE.previndex(j,Ly)]==1  && obs[i,LBE.nextindex(j,Ly)]==1 && obs[LBE.previndex(i,Lx),j]==1 && obs[LBE.previndex(i,Lx),LBE.previndex(j,Ly)]==1 && obs[LBE.previndex(i,Lx),LBE.nextindex(j,Ly)]==1 && obs[LBE.nextindex(i,Lx),j]==1 && obs[LBE.nextindex(i,Lx),LBE.previndex(j,Ly)]==1 && obs[LBE.nextindex(i,Lx),LBE.nextindex(j,Ly)]==1) ? 1 : 0 
         #-------------------------------------Linesegment-----------------------------------------corner----------------------------------left up corner-------------------------------------------------------------------------------left down corner--------------------------------------------------
@@ -238,8 +270,13 @@ function obslist(obs; T=Float64)
         obsup[i,j] = (obs[i,j]==1 && ((obs[LBE.nextindex(i,Lx), j]==0) || (obs[LBE.nextindex(i,Lx), j]==1 && (  (obs[LBE.nextindex(i,Lx),LBE.previndex(j,Ly)]==0 && obs[i,LBE.previndex(j,Ly)]==1)   || (obs[LBE.nextindex(i,Lx),LBE.nextindex(j,Ly)]==0 && obs[i,LBE.nextindex(j,Ly)]==1)  )))) ? 1 : 0
         #-------------------------------------Linesegment-----------------------------------------corner----------------------------------right down corner-----------------------------------------------------------------------------left down corner--------------------------------------------------
         obsdown[i,j] = (obs[i,j]==1 && ((obs[LBE.previndex(i,Lx), j]==0) || (obs[LBE.previndex(i,Lx), j]==1 && (  (obs[LBE.previndex(i,Lx),LBE.previndex(j,Ly)]==0 && obs[i,LBE.previndex(j,Ly)]==1)   || (obs[LBE.previndex(i,Lx),LBE.nextindex(j,Ly)]==0 && obs[i,LBE.nextindex(j,Ly)]==1)  )))) ? 1 : 0
+        #outer corners
+        obsoutlu[i,j] = ( obs[i,j]==1 && obs[LBE.previndex(i,Lx),j]==0 &&  obs[LBE.previndex(i,Lx),LBE.previndex(j,Ly)]==0 && obs[i,LBE.previndex(j,Ly)]==0) ? 1 : 0
+        obsoutld[i,j] = ( obs[i,j]==1 && obs[LBE.nextindex(i,Lx),j]==0 &&  obs[LBE.nextindex(i,Lx),LBE.previndex(j,Ly)]==0 && obs[i,LBE.previndex(j,Ly)]==0) ? 1 : 0
+        obsoutru[i,j] = ( obs[i,j]==1 && obs[LBE.previndex(i,Lx),j]==0 &&  obs[LBE.previndex(i,Lx),LBE.nextindex(j,Ly)]==0 && obs[i,LBE.nextindex(j,Ly)]==0) ? 1 : 0
+        obsoutrd[i,j] = ( obs[i,j]==1 && obs[LBE.nextindex(i,Lx),j]==0 &&  obs[LBE.nextindex(i,Lx),LBE.nextindex(j,Ly)]==0 && obs[i,LBE.nextindex(j,Ly)]==0) ? 1 : 0
     end
-    return [interior, obsleft, obsright, obsup, obsdown]
+    return [interior, obsleft, obsright, obsup, obsdown, obsoutlu, obsoutld, obsoutru, obsoutrd]
 end
 
 """
